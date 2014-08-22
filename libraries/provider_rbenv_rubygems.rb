@@ -80,12 +80,21 @@ class Chef
           true
         end
 
-        def install_via_gem_command(name, version = nil)
-          src            = @new_resource.source && "  --source=#{@new_resource.source} --source=http://rubygems.org"
-          version_option = (version.nil? || version.empty?) ? "" : " -v \"#{version}\""
-
+        # Shadows https://github.com/opscode/chef/blob/master/lib/chef/provider/package/rubygems.rb#L529-L540 for now
+        # Required as the rbenv-cookbook version of this command implements local gem installs incorrectly
+        def install_via_gem_command(name, version)
+          if @new_resource.source =~ /\.gem$/i
+            name = @new_resource.source
+          else
+            src = @new_resource.source && "  --source=#{@new_resource.source} --source=http://rubygems.org"
+          end
+          command = if version
+            "#{gem_binary_path} install #{name} -q --no-rdoc --no-ri -v \"#{version}\"#{src}#{opts}"
+          else
+            "#{gem_binary_path} install \"#{name}\" -q --no-rdoc --no-ri #{src}#{opts}"
+          end
           shell_out!(
-            "#{gem_binary_path} install #{name} -q --no-rdoc --no-ri #{version_option} #{src}#{opts}",
+            command,
             :user => node[:rbenv][:user],
             :group => node[:rbenv][:group],
             :env => {
